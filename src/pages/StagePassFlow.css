@@ -1,0 +1,1009 @@
+/* ============================================================
+   StagePass — Gallery Edition
+   Minimalist museum aesthetic. The hand is the hero.
+   ============================================================ */
+
+/* ---- Z-INDEX LAYERS ----
+   1: bg-contours (ambient SVG)
+   2: stagepass-headline
+   3: hand-artwork-container (hand, above blur)
+   4: hero-actions-layer (button)
+   5: overlay (register / confirmation / progress)
+     5a: register-backdrop (blur)
+     5b: overlay content
+   6: zoom-reveal-wrap
+*/
+
+/* ============================================================
+   BASE
+   ============================================================ */
+
+.stagepass-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: relative;
+  background: #f8f6f2;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+   LAYER 1 — Ambient contour background
+   ============================================================ */
+
+.bg-contours {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.contour-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.contour-svg path {
+  fill: none;
+  stroke: #e8e4de;
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+  transition: stroke 0.8s ease;
+}
+
+.contour-group {
+  transform-origin: center;
+  animation: contour-drift 40s ease-in-out infinite;
+}
+
+.contour-group:nth-child(1) { animation-duration: 28s; animation-delay: 0s; }
+.contour-group:nth-child(2) { animation-duration: 34s; animation-delay: -2s; }
+.contour-group:nth-child(3) { animation-duration: 30s; animation-delay: -5s; }
+.contour-group:nth-child(4) { animation-duration: 36s; animation-delay: -8s; }
+.contour-group:nth-child(5) { animation-duration: 32s; animation-delay: -3s; }
+
+.contour-group path {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 0;
+}
+
+.contour-animating path {
+  animation: contour-draw 2.8s ease-out forwards;
+}
+
+.contour-animating path:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+@keyframes contour-drift {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(4px, -3px); }
+  50% { transform: translate(-2px, 4px); }
+  75% { transform: translate(3px, -1px); }
+}
+
+@keyframes contour-draw {
+  0% {
+    stroke-dashoffset: 2000;
+    stroke: #c8c0b6;
+    stroke-width: 1.2;
+  }
+  60% {
+    stroke: #b8b0a6;
+    stroke-width: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    stroke: #e8e4de;
+    stroke-width: 0.7;
+  }
+}
+
+/* ============================================================
+   LAYER 2 — Headline
+   ============================================================ */
+
+.stagepass-headline {
+  position: absolute;
+  top: 5vh;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 0 24px;
+  pointer-events: none;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.headline-line {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+  font-weight: 200;
+  font-size: clamp(16px, 3.5vw, 22px);
+  line-height: 1.3;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+
+.headline-subtle {
+  opacity: 0.5;
+  transform: translateY(-4px);
+}
+
+/* ============================================================
+   LAYER 3 — Hand artwork (always visible)
+   ============================================================ */
+
+.hand-artwork-container {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: hand-float 18s ease-in-out infinite;
+  transition: transform 1.4s cubic-bezier(0.32, 0.72, 0, 1),
+              opacity 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: center center;
+}
+
+.living-hand-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 1.4s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+.state-lifted {
+  transform: translateY(-48px) scale(0.92);
+  opacity: 0.55;
+}
+
+.state-lifted .living-hand-canvas {
+  filter: brightness(0.98) contrast(1.02);
+}
+
+.state-zoomed-finger .living-hand-canvas {
+  transform: scale(3.5) translate(-10%, -6%);
+}
+
+.state-zoomed-finger.state-lifted {
+  transform: scale(3.5) translate(-10%, -6%);
+  opacity: 1;
+}
+
+/* Hand floating animation */
+@keyframes hand-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(0.3deg);
+  }
+  50% {
+    transform: translateY(2px) rotate(-0.2deg);
+  }
+  75% {
+    transform: translateY(-1px) rotate(0.15deg);
+  }
+}
+
+.state-lifted {
+  animation: hand-float-lifted 18s ease-in-out infinite;
+}
+
+@keyframes hand-float-lifted {
+  0%, 100% {
+    transform: translateY(-48px) scale(0.92) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-51px) scale(0.92) rotate(0.3deg);
+  }
+  50% {
+    transform: translateY(-46px) scale(0.92) rotate(-0.2deg);
+  }
+  75% {
+    transform: translateY(-49px) scale(0.92) rotate(0.15deg);
+  }
+}
+
+/* Breathing glow behind the hand */
+.hand-glow {
+  position: absolute;
+  width: 60%;
+  height: 50%;
+  top: 25%;
+  left: 20%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 192, 182, 0.08), transparent 70%);
+  pointer-events: none;
+  animation: hand-glow-pulse 8s ease-in-out infinite;
+}
+
+@keyframes hand-glow-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.08);
+  }
+}
+
+/* ---- Telemetry overlays on hand ---- */
+
+.telemetry {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+.state-lifted .telemetry {
+  opacity: 0.35;
+}
+
+.tele-crosshair {
+  position: absolute;
+  top: 10%;
+  right: 14%;
+  width: 14px;
+  height: 14px;
+  stroke: rgba(0, 0, 0, 0.12);
+  stroke-width: 0.6;
+  animation: tele-pulse 6s ease-in-out infinite;
+}
+
+.tele-bracket {
+  position: absolute;
+  bottom: 18%;
+  left: 10%;
+  width: 16px;
+  height: 16px;
+  stroke: rgba(0, 0, 0, 0.1);
+  stroke-width: 0.6;
+  animation: tele-pulse 6s ease-in-out infinite 1.5s;
+}
+
+.sys-coords {
+  position: absolute;
+  right: 6%;
+  bottom: 38%;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 7px;
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  color: rgba(0, 0, 0, 0.15);
+  margin: 0;
+  animation: tele-pulse 8s ease-in-out infinite 3s;
+}
+
+@keyframes tele-pulse {
+  0%, 100% { opacity: 0.3; }
+  33% { opacity: 0.6; }
+  66% { opacity: 0.15; }
+}
+
+/* ============================================================
+   LAYER 4 — Hero actions
+   ============================================================ */
+
+.hero-actions-layer {
+  position: absolute;
+  bottom: 8vh;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* ---- Floating button ---- */
+
+.sp-mark-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 36px;
+  border-radius: 40px;
+  border: none;
+  background: #000000;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+              background 0.35s ease,
+              box-shadow 0.35s ease;
+}
+
+.sp-mark-btn:hover {
+  transform: scale(1.03);
+  background: #1a1a1a;
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.sp-mark-btn:active {
+  transform: scale(0.97);
+  background: #000000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================================
+   LAYER 5 — Overlays (register, confirmation, progress)
+   ============================================================ */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: auto;
+  padding-bottom: 12vh;
+}
+
+/* ---- Register overlay ---- */
+
+.register-overlay {
+  justify-content: flex-end;
+}
+
+.register-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  background: rgba(248, 246, 242, 0.3);
+  pointer-events: none;
+}
+
+.register-form {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  padding: 0 20px;
+}
+
+.register-message {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.7);
+  margin: 0 0 24px;
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+/* ---- Premium glassmorphism inputs ---- */
+
+.sp-input {
+  width: 100%;
+  padding: 18px 24px;
+  margin-bottom: 14px;
+  border-radius: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  font-size: 15px;
+  font-weight: 300;
+  color: #000000;
+  outline: none;
+  pointer-events: auto;
+  transition: background 0.4s ease,
+              box-shadow 0.4s ease,
+              border-color 0.4s ease;
+}
+
+.sp-input:focus {
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.sp-input::placeholder {
+  color: rgba(0, 0, 0, 0.2);
+  font-weight: 300;
+  letter-spacing: 0.02em;
+}
+
+.sp-error {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 300;
+  color: #000000;
+  opacity: 0.4;
+  margin: -8px 0 14px;
+  text-align: center;
+}
+
+/* ---- Submit button ---- */
+
+.sp-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 36px;
+  margin-top: 4px;
+  border-radius: 40px;
+  border: none;
+  background: #000000;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+              background 0.35s ease,
+              box-shadow 0.35s ease,
+              opacity 0.3s ease;
+}
+
+.sp-submit-btn:hover:not(:disabled) {
+  transform: scale(1.03);
+  background: #1a1a1a;
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.sp-submit-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.sp-submit-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ---- Confirmation overlay ---- */
+
+.confirmation-overlay {
+  justify-content: center;
+  align-items: center;
+}
+
+.confirmation-message {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-weight: 300;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 0 0 16px;
+  letter-spacing: 0.06em;
+}
+
+.confirmation-check {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #000000;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 200;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+/* ---- Progress overlay ---- */
+
+.progress-overlay {
+  justify-content: center;
+  align-items: center;
+}
+
+.stagepass-ring-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stagepass-ring {
+  width: 110px;
+  height: 110px;
+  transform: rotate(-90deg);
+}
+
+.stagepass-ring-track {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.06);
+  stroke-width: 4;
+}
+
+.stagepass-ring-fill {
+  fill: none;
+  stroke: #000000;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.stagepass-ring-count {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 200;
+  color: #000000;
+  letter-spacing: 0.02em;
+}
+
+.progress-message {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-weight: 300;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.7);
+  margin: 0 0 2px;
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+.progress-milestone {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-weight: 300;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.4);
+  margin: 0 0 24px;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+.sp-done-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 28px;
+  border-radius: 40px;
+  border: none;
+  background: rgba(0, 0, 0, 0.04);
+  color: #000000;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.sp-done-btn:hover {
+  background: rgba(0, 0, 0, 0.07);
+  transform: scale(1.02);
+}
+
+.sp-done-btn:active {
+  background: rgba(0, 0, 0, 0.1);
+  transform: scale(0.98);
+}
+
+/* ============================================================
+   LAYER 6 — Zoom reveal
+   ============================================================ */
+
+.zoom-reveal-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.zoom-reveal {
+  text-align: center;
+  pointer-events: none;
+}
+
+.zoom-reveal-content {
+  background: rgba(248, 246, 242, 0.6);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  padding: 32px 40px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+
+.zoom-reveal-label {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.3);
+  margin: 0 0 4px;
+}
+
+.zoom-reveal-code {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 200;
+  letter-spacing: 0.25em;
+  color: #000000;
+  margin: 0 0 14px;
+}
+
+.zoom-reveal-divider {
+  width: 20px;
+  height: 0.5px;
+  background: rgba(0, 0, 0, 0.12);
+  margin: 0 auto 14px;
+}
+
+/* ============================================================
+   DISCOVERY — Cinematic zoom + reveal
+   ============================================================ */
+
+/* ---- Dim overlay ---- */
+
+.discovery-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: rgba(0, 0, 0, 0.04);
+  pointer-events: none;
+  transition: background 0.8s ease;
+}
+
+.discovery-zooming .discovery-dim {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.discovery-tracing .discovery-dim {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.discovery-revealed .discovery-dim {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.discovery-zooming-out .discovery-dim {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* ---- Hand zoom states ---- */
+
+.discovery-active {
+  z-index: 7 !important;
+}
+
+.discovery-zooming .hand-artwork-container {
+  animation: none !important;
+  transform-origin: var(--zoom-origin-x, 50% 55%) !important;
+  transform: scale(var(--zoom-scale, 2.8)) translate(var(--zoom-translate-x, 0), var(--zoom-translate-y, 0)) !important;
+  opacity: 0.92;
+  transition: transform 3s cubic-bezier(0.65, 0, 0.35, 1),
+              opacity 2s ease !important;
+}
+
+.discovery-tracing .hand-artwork-container {
+  animation: none !important;
+  transform-origin: var(--zoom-origin-x, 50% 55%) !important;
+  transform: scale(var(--zoom-scale, 2.8)) translate(var(--zoom-translate-x, 0), var(--zoom-translate-y, 0)) !important;
+  opacity: 1;
+  filter: brightness(1.05) contrast(1.02);
+  transition: opacity 1.2s ease, filter 2s ease;
+}
+
+.discovery-revealed .hand-artwork-container {
+  animation: none !important;
+  transform-origin: var(--zoom-origin-x, 50% 55%) !important;
+  transform: scale(var(--zoom-scale, 2.8)) translate(var(--zoom-translate-x, 0), var(--zoom-translate-y, 0)) !important;
+  opacity: 1;
+  transition: opacity 0.8s ease;
+}
+
+.discovery-zooming-out .hand-artwork-container {
+  animation: none !important;
+  transform: translateY(-48px) scale(0.92) !important;
+  opacity: 0.55;
+  transition: transform 1.8s cubic-bezier(0.65, 0, 0.35, 1),
+              opacity 1.4s ease !important;
+}
+
+.headline-fade {
+  opacity: 0 !important;
+  transform: translateY(-12px) !important;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+/* ---- Discovery contour SVG overlay ---- */
+
+.discovery-contour-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.discovery-contour-path {
+  fill: none;
+  stroke: #ff6b35;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 800;
+  stroke-dashoffset: 800;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  filter: drop-shadow(0 0 4px rgba(255, 107, 53, 0.3));
+}
+
+.discovery-tracing .discovery-contour-path {
+  opacity: 0.8;
+  animation: discovery-trace 2s ease-out forwards;
+  animation-delay: 0.2s;
+}
+
+.discovery-revealed .discovery-contour-path {
+  opacity: 0.5;
+  stroke-dashoffset: 0;
+}
+
+@keyframes discovery-trace {
+  0% {
+    stroke-dashoffset: 800;
+    stroke-width: 1.5;
+  }
+  60% {
+    stroke-width: 2;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    stroke-width: 1.5;
+    opacity: 0.8;
+  }
+}
+
+.discovery-contour-text {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 14px;
+  fill: none;
+  stroke: #ff6b35;
+  stroke-width: 0.6;
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  opacity: 0;
+  letter-spacing: 4px;
+}
+
+.discovery-tracing .discovery-contour-text {
+  animation: discovery-text-write 2.5s ease-out forwards;
+  animation-delay: 0.8s;
+}
+
+@keyframes discovery-text-write {
+  0% {
+    stroke-dashoffset: 600;
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.6;
+  }
+}
+
+/* ---- Discovery content embedded in artwork ---- */
+
+.discovery-inset {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+.discovery-revealed .discovery-inset {
+  opacity: 1;
+}
+
+.discovery-tag {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 10px;
+  color: rgba(255, 107, 53, 0.7);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.discovery-text {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(18px, 4vw, 28px);
+  color: rgba(255, 107, 53, 0.9);
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.3;
+  font-style: italic;
+  max-width: 80%;
+}
+
+.discovery-hint {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 10px;
+  color: rgba(255, 107, 53, 0.4);
+  letter-spacing: 0.1em;
+  margin-top: 8px;
+  font-style: normal;
+}
+
+/* ---- Discovery region label ---- */
+
+.discovery-region-label {
+  position: absolute;
+  top: 8vh;
+  left: 0;
+  right: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.discovery-region-name {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: clamp(14px, 3vw, 20px);
+  color: rgba(255, 107, 53, 0.8);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 400;
+}
+
+.discovery-region-hint {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  font-size: 9px;
+  color: rgba(255, 107, 53, 0.35);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---- Discovery continue button ---- */
+
+.discovery-continue-btn {
+  position: absolute;
+  bottom: 8vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 28px;
+  border-radius: 40px;
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  background: rgba(248, 246, 242, 0.8);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.discovery-continue-btn:hover {
+  background: rgba(248, 246, 242, 0.95);
+  border-color: rgba(255, 107, 53, 0.5);
+}
+
+/* Finger-zoom state: fade all overlays out */
+.state-zoomed-finger .overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.state-zoomed-finger .hero-actions-layer {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.state-zoomed-finger .stagepass-headline {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .contour-group {
+    animation: none !important;
+  }
+
+  .hand-artwork-container {
+    animation: none !important;
+  }
+
+  .hand-glow {
+    animation: none !important;
+    opacity: 0.4;
+  }
+
+  .tele-crosshair,
+  .tele-bracket,
+  .sys-coords {
+    animation: none !important;
+    opacity: 0.3;
+  }
+
+  .living-hand-canvas {
+    transition: none !important;
+  }
+
+  .sp-mark-btn {
+    transition: none !important;
+  }
+
+  .sp-mark-btn:hover {
+    transform: none !important;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (min-width: 480px) {
+  .stagepass-screen {
+    max-width: 430px;
+    margin: 0 auto;
+    border-left: 1px solid rgba(0, 0, 0, 0.04);
+    border-right: 1px solid rgba(0, 0, 0, 0.04);
+  }
+}
