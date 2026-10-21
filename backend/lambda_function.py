@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -29,6 +30,18 @@ CORS_HEADERS = {
 
 # E.164-ish. Accepts optional leading +, 7-15 digits, no spaces/dashes.
 PHONE_RE = re.compile(r"^\+?[0-9]{7,15}$")
+
+# Shared secret for admin routes. Set as a Lambda environment variable.
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+
+
+def admin_authorised(event):
+    """Admin routes require the x-api-key header to match ADMIN_KEY."""
+    if not ADMIN_KEY:
+        return False
+    headers = event.get("headers") or {}
+    supplied = headers.get("x-api-key") or headers.get("X-Api-Key") or ""
+    return secrets.compare_digest(str(supplied), ADMIN_KEY)
 
 
 def next_milestone(total_visits):
@@ -155,6 +168,8 @@ def handle_checkin(event):
 
 
 def handle_admin_members(event):
+    if not admin_authorised(event):
+        return respond(403, {"error": "Forbidden"})
     try:
         resp = members_table.scan()
         members = []
@@ -174,6 +189,8 @@ def handle_admin_members(event):
 
 
 def handle_admin_visits(event):
+    if not admin_authorised(event):
+        return respond(403, {"error": "Forbidden"})
     try:
         resp = visits_table.scan()
         visits = []
