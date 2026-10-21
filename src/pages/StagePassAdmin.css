@@ -35,6 +35,25 @@
   text-transform: uppercase;
 }
 
+.admin-download-btn {
+  background: none;
+  border: 1px solid #000;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 600;
+  color: #000;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: 0.15s;
+}
+
+.admin-download-btn:hover {
+  background: #000;
+  color: #fff;
+}
+
 .admin-divider-rule {
   display: inline-block;
   width: 1px;
@@ -48,6 +67,13 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 400;
+}
+
+.admin-tagline {
+  font-size: 9px;
+  color: #bbb;
+  font-style: italic;
+  letter-spacing: 0.02em;
 }
 
 .admin-header-right {
@@ -244,36 +270,6 @@
   gap: 6px;
 }
 
-.admin-phone-masked {
-  letter-spacing: 0.02em;
-}
-
-.admin-phone-visible {
-  letter-spacing: 0.02em;
-  color: #111;
-  font-weight: 500;
-}
-
-/* ─── Reveal Button ─── */
-
-.admin-reveal {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  font-size: 9px;
-  color: #0051ff;
-  cursor: pointer;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  transition: color 0.15s;
-}
-
-.admin-reveal:hover {
-  color: #00b894;
-}
-
 /* ─── Loyal Visitors Table ─── */
 
 .admin-table-loyal {
@@ -422,77 +418,6 @@
   color: #e30505 !important;
 }
 
-/* ─── Discovery Analytics ─── */
-
-.admin-discovery-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.admin-discovery-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.admin-discovery-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: #000;
-  letter-spacing: -0.01em;
-}
-
-.admin-discovery-label {
-  font-size: 8px;
-  color: #bbb;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.admin-discovery-breakdown {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.admin-discovery-region {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.admin-discovery-region-label {
-  width: 90px;
-  font-size: 9px;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-}
-
-.admin-discovery-bar-track {
-  flex: 1;
-  height: 6px;
-  background: #f0f0f0;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.admin-discovery-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.5s ease;
-}
-
-.admin-discovery-region-count {
-  width: 24px;
-  font-size: 9px;
-  color: #999;
-  text-align: right;
-}
-
 /* ─── Journey ─── */
 
 .admin-journey-grid {
@@ -521,30 +446,30 @@
   letter-spacing: 0.06em;
 }
 
-/* ─── Recent Discoveries ─── */
+/* ─── Live Section ─── */
 
-.admin-disc-tag {
-  display: inline-block;
-  font-size: 7px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 1px 5px;
-  border: 1px solid #e5e5e5;
-  color: #bbb;
-  margin-right: 4px;
+.admin-live-section {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #000;
+  padding-bottom: 16px;
 }
 
-.admin-disc-content {
-  font-size: 10px;
-  color: #555;
-  font-style: italic;
+.admin-live-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
-.admin-disc-visit {
-  font-size: 8px;
-  color: #ccc;
-  margin-left: 4px;
+.admin-live-header .admin-panel-title {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.admin-live-count {
+  font-size: 24px;
+  line-height: 1;
 }
 
 /* ─── Activity Feed ─── */
@@ -595,7 +520,7 @@
 
 .admin-profile-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -617,51 +542,6 @@
   color: #bbb;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-}
-
-.admin-profile-discoveries {
-  margin-bottom: 12px;
-}
-
-.admin-profile-disco-title {
-  font-size: 9px;
-  color: #999;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0 0 8px;
-}
-
-.admin-profile-disco-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.admin-profile-disco-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.admin-profile-disco-empty {
-  font-size: 10px;
-  color: #ccc;
-  font-style: italic;
-  margin: 0;
-}
-
-.admin-profile-next {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 8px;
-}
-
-.admin-profile-next-label {
-  font-size: 9px;
-  color: #bbb;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0;
 }
 
 .admin-clickable-row {
@@ -687,8 +567,15 @@
 /* ─── Responsive ─── */
 
 @media (max-width: 800px) {
-  .admin { padding: 20px; }
-  .admin-grid { grid-template-columns: 1fr; }
-  .admin-metrics { grid-template-columns: 1fr; gap: 12px; }
+  .admin { padding: 16px; }
+  .admin-header { flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 14px; padding-bottom: 8px; }
+  .admin-header-primary { flex-wrap: wrap; gap: 6px; }
+  .admin-header-right { width: 100%; justify-content: flex-start; gap: 6px; padding-top: 2px; }
+  .admin-login-time { font-size: 8px; }
+  .admin-grid { grid-template-columns: 1fr; gap: 20px; }
+  .admin-metrics { grid-template-columns: repeat(3, 1fr); gap: 8px; padding-bottom: 12px; }
   .admin-metric-item { border-right: none; padding: 0; }
+  .admin-metric-value { font-size: 18px; }
+  .admin-table-scroll { max-height: 180px; }
+  .admin-live-header { flex-wrap: wrap; }
 }

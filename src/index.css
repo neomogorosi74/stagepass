@@ -1,34 +1,37 @@
 :root {
-  --ink: #000000;
-  --ink-soft: #999999;
-  --line: rgba(0, 0, 0, 0.1);
-  --orange: #ff6b35;
-  --denim: #4567b7;
-  --coral: #ff6b6b;
+  --ink: #0A0A0A;
+  --ink-soft: rgba(10, 10, 10, 0.55);
+  --ink-faint: rgba(10, 10, 10, 0.1);
+  --pink: #EC1E68;
+  --cyan: #1E90D8;
+  --gold: #F5A623;
+  --purple: #7B2D8E;
+  --cream: #FAFAF7;
+  --white: #FFFFFF;
 
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    "SF Pro Text", system-ui, "Helvetica Neue", Arial, sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
-    "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Permanent Marker", "Marker Felt", "Arial Black", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    system-ui, sans-serif;
 }
 
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
+html, body, #root {
   height: 100%;
 }
 
 body {
-  margin: 0;
   font-family: var(--font-body);
-  background: #ffffff;
+  background: var(--cream);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   overscroll-behavior-y: none;
+  overflow-x: hidden;
 }
 
 button {
@@ -36,19 +39,43 @@ button {
   border: none;
   background: none;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 input {
   font-family: inherit;
+  border: none;
+  outline: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
 }
 
 ::selection {
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--pink);
+  color: var(--white);
+}
+
+.app-layout {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hand-artwork-float {
-    animation: none !important;
-    transform: none !important;
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -4,8 +4,8 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
-import { getVisits, getMembers } from '../utils/storage.js'
-import { DISCOVERIES, REGIONS, getRecentDiscoveries, getRegionCompletion, getTotalDiscoveryCount } from '../utils/discoveries.js'
+import { jsPDF } from 'jspdf'
+import { getVisits, getMembers, fetchAdminData } from '../utils/storage.js'
 import './StagePassAdmin.css'
 
 const PIE_COLORS = ['#87ceeb', '#00b894', '#ffd700']
@@ -33,24 +33,44 @@ function countVisitsOnDate(visits, dateStr) {
   return visits.filter(v => v.timestamp.slice(0, 10) === dateStr).length
 }
 
-function buildTrafficData(visits, days = 30) {
+function getThursdayDate(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day <= 4 ? (4 - day) : (4 - day + 7)
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
+function getLastThursdays(count = 8) {
   const now = new Date()
-  const groups = {}
-  for (let i = days - 1; i >= 0; i--) {
+  const thursdays = []
+  for (let i = 0; i < count; i++) {
     const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    const key = d.toISOString().slice(0, 10)
-    groups[key] = 0
+    d.setDate(d.getDate() - ((d.getDay() + 3) % 7) - i * 7)
+    thursdays.push(d.toISOString().slice(0, 10))
   }
+  return thursdays.reverse()
+}
+
+function buildTrafficData(visits) {
+  const thursdays = getLastThursdays(8)
+  const groups = {}
+  for (const t of thursdays) groups[t] = 0
   for (const v of visits) {
     const day = v.timestamp.slice(0, 10)
-    if (day in groups) groups[day]++
+    const thu = getThursdayDate(day)
+    if (thu in groups) groups[thu]++
   }
-  return Object.entries(groups).map(([date, count], i) => ({
-    day: i + 1,
-    count,
-    date,
-  }))
+  const shortMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return thursdays.map((date, i) => {
+    const d = new Date(date)
+    return {
+      day: i + 1,
+      count: groups[date],
+      date,
+      label: `${d.getDate()} ${shortMonths[d.getMonth()]}`,
+    }
+  })
 }
 
 function buildLiveCheckins(visits, members) {
@@ -84,7 +104,6 @@ function buildLoyalVisitors(members) {
       rank: i + 1,
       name: m.firstName,
       visits: m.totalVisits,
-      discoveries: (m.discoveries || []).length,
       tier: tier(m.totalVisits),
     }))
 }
@@ -125,33 +144,31 @@ function countNewVsReturning(members) {
 }
 
 function buildVisitorTrend(visits, members) {
-  const now = new Date()
+  const thursdays = getLastThursdays(8)
   const memberFirstVisit = {}
   for (const m of members) {
     if (m.createdAt) {
       memberFirstVisit[m.phoneNumber] = m.createdAt.slice(0, 10)
     }
   }
-  const trend = []
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    const dateStr = d.toISOString().slice(0, 10)
-    const dayVisits = visits.filter(v => v.timestamp.slice(0, 10) === dateStr)
+  const shortMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return thursdays.map((date, i) => {
+    const dayVisits = visits.filter(v => v.timestamp.slice(0, 10) === date)
     let firstTime = 0, repeat = 0
     for (const v of dayVisits) {
-      if (memberFirstVisit[v.memberId] === dateStr) firstTime++
+      if (memberFirstVisit[v.memberId] === date) firstTime++
       else repeat++
     }
-    trend.push({
+    const d = new Date(date)
+    return {
       day: i + 1,
-      date: dateStr,
+      date,
+      label: `${d.getDate()} ${shortMonths[d.getMonth()]}`,
       firstTime,
       repeat,
       total: firstTime + repeat,
-    })
-  }
-  return trend
+    }
+  })
 }
 
 function calcStreaks(members) {
@@ -178,16 +195,14 @@ export default function StagePassAdmin() {
   const [liveCheckins, setLiveCheckins] = useState([])
   const [activeCount, setActiveCount] = useState(0)
   const [todayCount, setTodayCount] = useState(0)
-  const [yesterdayCount, setYesterdayCount] = useState(0)
-  const [weekCount, setWeekCount] = useState(0)
   const [loyalVisitors, setLoyalVisitors] = useState([])
   const [visitorPie, setVisitorPie] = useState([])
-  const [revealed, setRevealed] = useState({})
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMember, setSelectedMember] = useState(null)
   const [visitorTrend, setVisitorTrend] = useState([])
-  const [recentDiscoveries, setRecentDiscoveries] = useState([])
-  const [discoveryStats, setDiscoveryStats] = useState({ totalUnlocked: 0, completionPct: 0, byRegion: {} })
+  const [cloudMembers, setCloudMembers] = useState([])
+  const [cloudVisits, setCloudVisits] = useState([])
+  const [dataSource, setDataSource] = useState('local')
   const [loginTime] = useState(() => {
     const d = new Date()
     return d.toLocaleString('en-ZA', {
@@ -196,21 +211,18 @@ export default function StagePassAdmin() {
     })
   })
 
-  const refreshData = useCallback(() => {
-    const visits = getVisits()
-    const members = getMembers()
+  const refreshData = useCallback(async () => {
+    const { members, visits, source } = await fetchAdminData()
+    setCloudMembers(members)
+    setCloudVisits(visits)
+    setDataSource(source)
     setTrafficData(buildTrafficData(visits))
     setLiveCheckins(buildLiveCheckins(visits, members))
     setActiveCount(countActive(visits))
     setTodayCount(countToday(visits))
-    setYesterdayCount(countVisitsOnDate(visits, getDateStr(-1)))
-    const last7 = Array.from({ length: 7 }, (_, i) => countVisitsOnDate(visits, getDateStr(-i)))
-    setWeekCount(last7.reduce((a, b) => a + b, 0))
     setLoyalVisitors(buildLoyalVisitors(members))
     setVisitorPie(buildVisitorPie(members))
     setVisitorTrend(buildVisitorTrend(visits, members))
-    setRecentDiscoveries(getRecentDiscoveries(members, 30))
-    setDiscoveryStats(getRegionCompletion(members))
   }, [])
 
   useEffect(() => {
@@ -219,42 +231,97 @@ export default function StagePassAdmin() {
     return () => clearInterval(iv)
   }, [refreshData])
 
-  const toggleReveal = useCallback(id => {
-    setRevealed(prev => ({ ...prev, [id]: !prev[id] }))
-  }, [])
-
-  const filteredMembers = getMembers()
+  const filteredMembers = cloudMembers
     .filter(m => {
       if (!searchQuery) return true
       const q = searchQuery.toLowerCase()
-      return m.firstName.toLowerCase().includes(q) ||
-             m.phoneNumber.includes(q) ||
-             String(m.totalVisits).includes(q)
+      return (m.firstName || '').toLowerCase().includes(q) ||
+             (m.phoneNumber || '').includes(q) ||
+             String(m.totalVisits || '').includes(q)
     })
     .slice(0, 20)
 
-  const growthPct = yesterdayCount > 0
-    ? Math.round(((todayCount - yesterdayCount) / yesterdayCount) * 100)
-    : todayCount > 0 ? 100 : 0
+  const nrCounts = countNewVsReturning(cloudMembers)
 
-  const nrCounts = countNewVsReturning(getMembers())
+  const recentActivity = liveCheckins.slice(-20).reverse()
 
-  const recentActivity = [
-    ...liveCheckins.slice(0, 10).map(c => ({ ...c, type: 'checkin' })),
-    ...recentDiscoveries.slice(0, 10).map(d => ({
-      id: d.discoveryId,
-      name: d.memberName,
-      type: 'discovery',
-      content: d.content,
-      region: d.region,
-      tag: d.tag,
-      time: new Date(d.timestamp).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }),
-    })),
-  ].sort((a, b) => {
-    if (a.time > b.time) return -1
-    if (a.time < b.time) return 1
-    return 0
-  }).slice(0, 20)
+  const handleDownloadPDF = useCallback(() => {
+    const visits = cloudVisits
+    const members = cloudMembers
+    const totalVisits = visits.length
+    const totalVisitors = members.length
+    const nr = countNewVsReturning(members)
+    const today = countToday(visits)
+    const traffic = buildTrafficData(visits)
+    const totalThursday = traffic.reduce((a, b) => a + b.count, 0)
+    const loyal = buildLoyalVisitors(members)
+    const now = new Date().toLocaleString('en-ZA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    const pageW = 210
+    const margin = 20
+    const col1 = margin
+    const col2 = 70
+    let y = margin
+
+    const heading = (text, size = 16) => { doc.setFont('Helvetica', 'bold'); doc.setFontSize(size); doc.text(text, margin, y); y += size * 0.55 }
+    const sub = (text, size = 9) => { doc.setFont('Helvetica', 'normal'); doc.setFontSize(size); doc.setTextColor(140); doc.text(text, margin, y); y += size * 0.5; doc.setTextColor(0) }
+    const bold = (text, size = 11) => { doc.setFont('Helvetica', 'bold'); doc.setFontSize(size); doc.text(text, margin, y); y += size * 0.5 }
+    const normal = (text, size = 10) => { doc.setFont('Helvetica', 'normal'); doc.setFontSize(size); doc.text(text, margin, y); y += size * 0.55 }
+    const divider = () => { y += 3; doc.setDrawColor(220); doc.line(margin, y, pageW - margin, y); y += 5 }
+    const spacer = (h) => { y += h }
+
+    heading('Black Labone')
+    sub('Attendance Report — Every Thursday', 8)
+    divider()
+
+    bold('Today', 12)
+    normal(`${today} check-ins`, 16)
+    spacer(4)
+
+    bold('Community Overview', 11)
+    normal(`Total Thursday check-ins: ${totalThursday}`)
+    normal(`Unique visitors: ${totalVisitors}`)
+    normal(`New visitors: ${nr.new}`)
+    normal(`Returning: ${nr.returning}`)
+    divider()
+
+    bold('Thursday Traffic (Last 8 Weeks)', 11)
+    traffic.forEach(t => {
+      normal(`${t.label}: ${t.count} check-ins`)
+    })
+    divider()
+
+    bold('Loyal Visitors', 11)
+    if (loyal.length > 0) {
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text('#', col1, y)
+      doc.text('Name', col1 + 10, y)
+      doc.text('Visits', col2, y)
+      doc.text('Tier', col2 + 20, y)
+      y += 5
+      doc.setDrawColor(220)
+      doc.line(margin, y - 1, pageW - margin, y - 1)
+      doc.setFont('Helvetica', 'normal')
+      doc.setFontSize(9)
+      loyal.slice(0, 10).forEach(v => {
+        doc.text(String(v.rank), col1, y)
+        doc.text(v.name, col1 + 10, y)
+        doc.text(String(v.visits), col2, y)
+        doc.text(v.tier, col2 + 20, y)
+        y += 5
+      })
+    }
+
+    spacer(8)
+    doc.setFont('Helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(180)
+    doc.text('Powered by StagePass', margin, y)
+
+    doc.save('black-labone-attendance-report.pdf')
+  }, [cloudVisits, cloudMembers])
 
   return (
     <motion.div
@@ -267,14 +334,48 @@ export default function StagePassAdmin() {
         <div className="admin-header-primary">
           <span className="admin-identity">BLACK LABONE</span>
           <span className="admin-context">[ CURATOR ]</span>
+          <span className="admin-divider-rule" />
+          <span className="admin-tagline">Showing up is showing love</span>
         </div>
         <div className="admin-header-right">
           <span className="admin-login-time">{loginTime}</span>
           <span className="admin-divider-rule" />
           <span className="admin-indicator" />
-          <span className="admin-indicator-label">Live</span>
+          <span className="admin-indicator-label">{dataSource === 'cloud' ? 'Live • Cloud' : 'Live • Local'}</span>
         </div>
       </header>
+
+      {/* Live Activity — always on top */}
+      <section className="admin-panel admin-live-section">
+        <div className="admin-live-header">
+          <h2 className="admin-panel-title">Live Activity</h2>
+          <span className="admin-metric-value admin-live-count">{todayCount.toLocaleString()}</span>
+          <span className="admin-metric-label">checked in today</span>
+        </div>
+        <div className="admin-table-scroll" style={{ maxHeight: 220 }}>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th className="admin-th-name">Activity</th>
+                <th className="admin-th-time">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentActivity.map((entry, i) => (
+                <tr key={`${entry.id}-${i}`}>
+                  <td className="admin-td-name">
+                    <span className="admin-activity-checkin">
+                      <span className="admin-activity-name">{entry.name}</span>
+                      <span className="admin-activity-action">checked in</span>
+                    </span>
+                  </td>
+                  <td className="admin-td-time">{entry.time}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <div className="admin-search">
         <input
@@ -288,37 +389,27 @@ export default function StagePassAdmin() {
       <div className="admin-metrics">
         <div className="admin-metric-item">
           <span className="admin-metric-value">{todayCount.toLocaleString()}</span>
-          <span className="admin-metric-label">Today</span>
+          <span className="admin-metric-label">Check-ins Today</span>
         </div>
         <div className="admin-metric-item">
-          <span className="admin-metric-value">{yesterdayCount.toLocaleString()}</span>
-          <span className="admin-metric-label">Yesterday</span>
+          <span className="admin-metric-value">{activeCount}</span>
+          <span className="admin-metric-label">Active Now</span>
         </div>
         <div className="admin-metric-item">
-          <span className="admin-metric-value">{weekCount.toLocaleString()}</span>
-          <span className="admin-metric-label">Last 7 days</span>
-        </div>
-        <div className="admin-metric-item">
-          <span className="admin-metric-value">{trafficData.reduce((a, b) => a + b.count, 0).toLocaleString()}</span>
-          <span className="admin-metric-label">Last 30 days</span>
-        </div>
-        <div className="admin-metric-item">
-          <span className={`admin-metric-value${growthPct < 0 ? ' admin-metric-negative' : ''}`}>
-            {growthPct > 0 ? '+' : ''}{growthPct}%
-          </span>
-          <span className="admin-metric-label">Growth vs yesterday</span>
+          <span className="admin-metric-value">{cloudMembers.length}</span>
+          <span className="admin-metric-label">Total Visitors</span>
         </div>
       </div>
 
       <div className="admin-grid">
         <div className="admin-grid-primary">
           <section className="admin-panel">
-            <h2 className="admin-panel-title">Check-in Traffic / 30 Days</h2>
+            <h2 className="admin-panel-title">Thursday Traffic / Last 8 Weeks</h2>
             <div className="admin-chart">
               <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={trafficData}>
+                <AreaChart data={trafficData} onClick={(e) => e?.activePayload && alert(`Date: ${e.activePayload[0].payload.date}\nCheck-ins: ${e.activePayload[0].payload.count}`)}>
                   <CartesianGrid strokeDasharray="2 2" stroke="#eee" strokeWidth={0.5} />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} />
                   <YAxis tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} width={28} />
                   <Tooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #000', boxShadow: 'none', padding: '6px 10px' }} labelStyle={{ fontSize: 9, color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }} />
                   <Area type="monotone" dataKey="count" stroke="#00b894" strokeWidth={1.5} fill="none" dot={false} activeDot={{ r: 3, stroke: '#00b894', strokeWidth: 1, fill: '#fff' }} />
@@ -326,85 +417,16 @@ export default function StagePassAdmin() {
               </ResponsiveContainer>
             </div>
           </section>
-
-          <section className="admin-panel">
-            <h2 className="admin-panel-title">Discovery Analytics</h2>
-            <div className="admin-discovery-metrics">
-              <div className="admin-discovery-stat">
-                <span className="admin-discovery-value">{discoveryStats.totalUnlocked}</span>
-                <span className="admin-discovery-label">Total discoveries unlocked</span>
-              </div>
-              <div className="admin-discovery-stat">
-                <span className="admin-discovery-value">{discoveryStats.completionPct}%</span>
-                <span className="admin-discovery-label">Discovery completion</span>
-              </div>
-              <div className="admin-discovery-stat">
-                <span className="admin-discovery-value">{getTotalDiscoveryCount()}</span>
-                <span className="admin-discovery-label">Total available</span>
-              </div>
-            </div>
-            <div className="admin-discovery-breakdown">
-              {REGIONS.map(r => {
-                const count = discoveryStats.byRegion[r.id] || 0
-                const regionMax = DISCOVERIES.filter(d => d.region === r.id).length
-                const pct = regionMax > 0 ? Math.round((count / regionMax) * 100) : 0
-                return (
-                  <div key={r.id} className="admin-discovery-region">
-                    <span className="admin-discovery-region-label">{r.label}</span>
-                    <div className="admin-discovery-bar-track">
-                      <div className="admin-discovery-bar-fill" style={{ width: `${pct}%`, background: r.id === 'palm' ? '#ff6b35' : r.id === 'thumb' ? '#4567b7' : r.id === 'index' ? '#e74c3c' : r.id === 'middle' ? '#2ecc71' : r.id === 'ring' ? '#9b59b6' : '#e67e22' }} />
-                    </div>
-                    <span className="admin-discovery-region-count">{count}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-
-          <section className="admin-panel">
-            <h2 className="admin-panel-title">Live Activity</h2>
-            <div className="admin-table-scroll" style={{ maxHeight: 320 }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th className="admin-th-name">Activity</th>
-                    <th className="admin-th-time">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentActivity.map((entry, i) => (
-                    <tr key={`${entry.id}-${i}`}>
-                      <td className="admin-td-name">
-                        {entry.type === 'discovery' ? (
-                          <span className="admin-activity-discovery">
-                            <span className="admin-activity-name">{entry.name}</span>
-                            <span className="admin-activity-action">unlocked</span>
-                            <span className="admin-activity-content">&ldquo;{entry.content}&rdquo;</span>
-                          </span>
-                        ) : (
-                          <span className="admin-activity-checkin">
-                            <span className="admin-activity-name">{entry.name}</span>
-                            <span className="admin-activity-action">checked in</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="admin-td-time">{entry.time}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </div>
 
         <div className="admin-grid-secondary">
           <section className="admin-panel">
-            <h2 className="admin-panel-title">First-Time vs Returning / 14 Days</h2>
+            <h2 className="admin-panel-title">First-Time vs Returning / 8 Thursdays</h2>
             <div className="admin-chart">
               <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={visitorTrend}>
+                <BarChart data={visitorTrend} onClick={(e) => e?.activePayload && alert(`${e.activePayload[0].payload.date}\nFirst-time: ${e.activePayload[0].payload.firstTime}\nReturning: ${e.activePayload[0].payload.repeat}`)}>
                   <CartesianGrid strokeDasharray="2 2" stroke="#eee" strokeWidth={0.5} />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} />
                   <YAxis tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} width={28} />
                   <Tooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #000', boxShadow: 'none', padding: '6px 10px' }} />
                   <Legend wrapperStyle={{ fontSize: 9, color: '#999' }} />
@@ -416,12 +438,12 @@ export default function StagePassAdmin() {
           </section>
 
           <section className="admin-panel">
-            <h2 className="admin-panel-title">Growth Trend / 14 Days</h2>
+            <h2 className="admin-panel-title">Growth Trend / 8 Thursdays</h2>
             <div className="admin-chart">
               <ResponsiveContainer width="100%" height={130}>
-                <AreaChart data={visitorTrend}>
+                <AreaChart data={visitorTrend} onClick={(e) => e?.activePayload && alert(`${e.activePayload[0].payload.date}\nTotal check-ins: ${e.activePayload[0].payload.total}`)}>
                   <CartesianGrid strokeDasharray="2 2" stroke="#eee" strokeWidth={0.5} />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} />
                   <YAxis tick={{ fontSize: 9, fill: '#999' }} axisLine={{ stroke: '#ddd', strokeWidth: 0.5 }} tickLine={false} width={28} />
                   <Tooltip contentStyle={{ fontSize: 11, borderRadius: 0, border: '1px solid #000', boxShadow: 'none', padding: '6px 10px' }} />
                   <Area type="monotone" dataKey="total" stroke="#000" strokeWidth={1.5} fill="none" dot={false} activeDot={{ r: 3, stroke: '#000', strokeWidth: 1, fill: '#fff' }} />
@@ -443,41 +465,12 @@ export default function StagePassAdmin() {
               </div>
               <div className="admin-journey-item">
                 <span className="admin-journey-value">
-                  {getMembers().length > 0
-                    ? (getMembers().reduce((a, b) => a + b.totalVisits, 0) / getMembers().length).toFixed(1)
+                  {cloudMembers.length > 0
+                    ? (cloudMembers.reduce((a, b) => a + b.totalVisits, 0) / cloudMembers.length).toFixed(1)
                     : '0'}
                 </span>
                 <span className="admin-journey-label">Avg visits</span>
               </div>
-            </div>
-          </section>
-
-          <section className="admin-panel">
-            <h2 className="admin-panel-title">Recent Discoveries</h2>
-            <div className="admin-table-scroll" style={{ maxHeight: 240 }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th className="admin-th-name">Visitor</th>
-                    <th className="admin-th-name">Discovery</th>
-                    <th className="admin-th-time">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentDiscoveries.slice(0, 15).map((d, i) => (
-                    <tr key={`${d.discoveryId}-${i}`}>
-                      <td className="admin-td-name">{d.memberName}</td>
-                      <td className="admin-td-name">
-                        <span className="admin-disc-tag">{d.tag}</span>
-                        <span className="admin-disc-content">{d.content}</span>
-                      </td>
-                      <td className="admin-td-time">
-                        {new Date(d.timestamp).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </section>
 
@@ -518,7 +511,7 @@ export default function StagePassAdmin() {
                     <th className="admin-th-name">Name</th>
                     <th className="admin-th-phone">Phone</th>
                     <th className="admin-th-visits">Visits</th>
-                    <th className="admin-th-tier">Discoveries</th>
+                    <th className="admin-th-tier">Tier</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -527,7 +520,7 @@ export default function StagePassAdmin() {
                       <td className="admin-td-name">{m.firstName}</td>
                       <td className="admin-td-phone">{m.phoneNumber}</td>
                       <td className="admin-td-visits">{m.totalVisits}</td>
-                      <td className="admin-td-tier">{(m.discoveries || []).length}</td>
+                      <td className="admin-td-tier">{tier(m.totalVisits)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -547,35 +540,9 @@ export default function StagePassAdmin() {
                   <span className="admin-profile-stat-label">Visits</span>
                 </div>
                 <div className="admin-profile-stat">
-                  <span className="admin-profile-stat-value">{(selectedMember.discoveries || []).length}</span>
-                  <span className="admin-profile-stat-label">Discoveries</span>
-                </div>
-                <div className="admin-profile-stat">
                   <span className="admin-profile-stat-value">{tier(selectedMember.totalVisits)}</span>
                   <span className="admin-profile-stat-label">Tier</span>
                 </div>
-              </div>
-              <div className="admin-profile-discoveries">
-                <p className="admin-profile-disco-title">Unlocked discoveries:</p>
-                {(selectedMember.discoveries || []).length > 0 ? (
-                  <div className="admin-profile-disco-list">
-                    {(selectedMember.discoveries || []).map(dId => {
-                      const d = DISCOVERIES.find(dd => dd.id === dId)
-                      return d ? (
-                        <div key={dId} className="admin-profile-disco-item">
-                          <span className="admin-disc-tag">{d.tag}</span>
-                          <span className="admin-disc-content">&ldquo;{d.content}&rdquo;</span>
-                          <span className="admin-disc-visit">Visit {d.visitNumber}</span>
-                        </div>
-                      ) : null
-                    })}
-                  </div>
-                ) : (
-                  <p className="admin-profile-disco-empty">No discoveries yet</p>
-                )}
-              </div>
-              <div className="admin-profile-next">
-                <p className="admin-profile-next-label">Next discovery at visit {(selectedMember.discoveries || []).length + 1}</p>
               </div>
             </section>
           )}
@@ -584,7 +551,7 @@ export default function StagePassAdmin() {
             <h2 className="admin-panel-title">Visitor Distribution</h2>
             <div className="admin-chart admin-chart-pie">
               <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
+                <PieChart onClick={(e) => e?.activeLabel && alert(`${e.activeLabel}: ${e.activeValue}%`)}>
                   <Pie data={visitorPie} cx="50%" cy="50%" innerRadius={38} outerRadius={62} dataKey="value" strokeWidth={0.5} stroke="#fff">
                     {visitorPie.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i]} />
@@ -607,7 +574,10 @@ export default function StagePassAdmin() {
         </div>
       </div>
 
-      <footer className="admin-footer">Developed by Neo Mogorosi</footer>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', padding: '12px 0' }}>
+        <button className="admin-download-btn" onClick={handleDownloadPDF}>Download Report</button>
+      </div>
+      <p style={{ fontSize: '8px', fontWeight: 300, color: '#0A0A0A', letterSpacing: '0.05em', textAlign: 'center', padding: '4px 0 16px' }}>Developed by Neo Mogorosi</p>
     </motion.div>
   )
 }

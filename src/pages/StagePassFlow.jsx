@@ -1,13 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import handArt from '../assets/hand-artwork.png'
+import { motion } from 'framer-motion'
 import {
   lookupMember,
   recordVisit,
   getCachedPhoneNumber,
   setCachedPhoneNumber,
 } from '../utils/storage.js'
-import { getDiscoveryById, REGIONS, REGION_ZOOMS, REGION_CONTOURS } from '../utils/discoveries.js'
 import './StagePassFlow.css'
 
 const ordinal = (n) => {
@@ -26,14 +24,8 @@ export default function StagePassFlow() {
   const [member, setMember] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [fingerZoomed, setFingerZoomed] = useState(false)
   const [animatingLine, setAnimatingLine] = useState(-1)
-  const [discoveryPhase, setDiscoveryPhase] = useState(null)
-  const [activeDiscovery, setActiveDiscovery] = useState(null)
   const animatingLineTimer = useRef(null)
-
-  const hasOverlay = view !== 'hero' || discoveryPhase !== null
-  const inDiscovery = discoveryPhase !== null
 
   useEffect(() => {
     const cached = getCachedPhoneNumber()
@@ -90,12 +82,7 @@ export default function StagePassFlow() {
       })
       setCachedPhoneNumber(phoneNumber)
       setMember(result)
-      setActiveDiscovery(result.newDiscovery || null)
-
-      setDiscoveryPhase('dimming')
-      setTimeout(() => setDiscoveryPhase('zooming'), 1000)
-      setTimeout(() => setDiscoveryPhase('tracing'), 4000)
-      setTimeout(() => setDiscoveryPhase('revealed'), 6200)
+      setView('progress')
     } catch {
       setError("Couldn't reach the server. Check your connection and try again.")
     } finally {
@@ -103,26 +90,11 @@ export default function StagePassFlow() {
     }
   }
 
-  const handleContinue = () => {
-    setDiscoveryPhase('zooming-out')
-    setTimeout(() => {
-      setView('progress')
-      setDiscoveryPhase(null)
-    }, 1400)
-  }
-
-  useEffect(() => {
-    if (view === 'progress' && member?.totalVisits === 2) {
-      setTimeout(() => setFingerZoomed(true), 600)
-    }
-  }, [view, member])
-
   const resetForNextScan = () => {
     setFirstName('')
     setKnownMember(null)
     setMember(null)
     setError('')
-    setFingerZoomed(false)
     setView('hero')
   }
 
@@ -132,11 +104,8 @@ export default function StagePassFlow() {
     ? Math.min(member.totalVisits / milestone.count, 1)
     : 0
 
-  const zoomConfig = activeDiscovery ? REGION_ZOOMS[activeDiscovery.region] : null
-  const contourPath = activeDiscovery ? REGION_CONTOURS[activeDiscovery.region] : null
-
   return (
-    <div className={`stagepass-screen${fingerZoomed ? ' state-zoomed-finger' : ''}${inDiscovery ? ` discovery-${discoveryPhase}` : ''}`}>
+    <div className="stagepass-screen">
       {/* LAYER 1 — Ambient contour background */}
       <div className="bg-contours">
         <svg viewBox="0 0 430 932" preserveAspectRatio="none" className="contour-svg">
@@ -161,86 +130,13 @@ export default function StagePassFlow() {
       </div>
 
       {/* LAYER 2 — Headline (always visible) */}
-      <div className={`stagepass-headline${hasOverlay ? ' headline-subtle' : ''}${inDiscovery ? ' headline-fade' : ''}`}>
+      <div className="stagepass-headline">
         <span className="headline-line">SHOWING UP</span>
         <span className="headline-line">IS SHOWING LOVE</span>
       </div>
 
-      {/* LAYER 3 — Hand artwork (always visible) */}
-      <div
-        className={`hand-artwork-container${hasOverlay ? ' state-lifted' : ''}${fingerZoomed ? ' state-zoomed-finger' : ''}${inDiscovery ? ' discovery-active' : ''}`}
-        style={
-          zoomConfig && (discoveryPhase === 'zooming' || discoveryPhase === 'tracing' || discoveryPhase === 'revealed')
-            ? {
-                '--zoom-origin-x': zoomConfig.originX,
-                '--zoom-origin-y': zoomConfig.originY,
-                '--zoom-scale': zoomConfig.scale,
-                '--zoom-translate-x': zoomConfig.translateX,
-                '--zoom-translate-y': zoomConfig.translateY,
-              }
-            : {}
-        }
-      >
-        <div className="hand-glow" />
-        <img
-          src={handArt}
-          className="living-hand-canvas"
-          alt="Hand Vector Lines"
-        />
-
-        {/* Discovery contour tracing overlay */}
-        {inDiscovery && discoveryPhase !== 'dimming' && discoveryPhase !== 'zooming-out' && contourPath && (
-          <svg className="discovery-contour-svg" viewBox="0 0 430 932" preserveAspectRatio="none">
-            {activeDiscovery?.visitNumber === 1 && (
-              <defs>
-                <path id="text-arc-path" d="M60,440 C140,400 280,430 370,380" />
-              </defs>
-            )}
-            <path
-              className="discovery-contour-path"
-              d={contourPath}
-            />
-            {activeDiscovery?.visitNumber === 1 && discoveryPhase === 'tracing' && (
-              <text className="discovery-contour-text">
-                <textPath href="#text-arc-path" startOffset="50%" textAnchor="middle" letterSpacing="3">
-                  i saw a white cat
-                </textPath>
-              </text>
-            )}
-          </svg>
-        )}
-
-        {/* Hidden discovery text embedded in the artwork */}
-        {discoveryPhase === 'revealed' && activeDiscovery && (
-          <div className="discovery-inset">
-            <span className="discovery-tag">{activeDiscovery.tag}</span>
-            <span className="discovery-text">{activeDiscovery.content}</span>
-            {activeDiscovery.hint && (
-              <span className="discovery-hint">{activeDiscovery.hint}</span>
-            )}
-          </div>
-        )}
-
-        <div className="telemetry">
-          <svg viewBox="0 0 20 20" className="tele-crosshair">
-            <line x1="10" y1="0" x2="10" y2="4" />
-            <line x1="10" y1="16" x2="10" y2="20" />
-            <line x1="0" y1="10" x2="4" y2="10" />
-            <line x1="16" y1="10" x2="20" y2="10" />
-            <circle cx="10" cy="10" r="2.5" fill="none" />
-          </svg>
-          <svg viewBox="0 0 20 20" className="tele-bracket">
-            <path d="M0,4 L0,0 L4,0" />
-            <path d="M20,4 L20,0 L16,0" />
-            <path d="M0,16 L0,20 L4,20" />
-            <path d="M20,16 L20,20 L16,20" />
-          </svg>
-          <p className="sys-coords">[SYS_LOC &sol;&sol; 0.26]</p>
-        </div>
-      </div>
-
       {/* LAYER 4 — Hero actions */}
-      {view === 'hero' && !inDiscovery && (
+      {view === 'hero' && (
         <div className="hero-actions-layer">
           <motion.button
             className="sp-mark-btn"
@@ -256,7 +152,7 @@ export default function StagePassFlow() {
       )}
 
       {/* LAYER 5 — Register form */}
-      {view === 'register' && !inDiscovery && (
+      {view === 'register' && (
         <motion.div
           className="overlay register-overlay"
           initial={{ opacity: 1 }}
@@ -316,48 +212,8 @@ export default function StagePassFlow() {
         </motion.div>
       )}
 
-      {/* LAYER 6 — Discovery dim overlay */}
-      {inDiscovery && (
-        <div className="discovery-dim" />
-      )}
-
-      {/* LAYER 7 — Discovery region label / zoom indicator */}
-      {inDiscovery && activeDiscovery && (discoveryPhase === 'zooming' || discoveryPhase === 'tracing') && (
-        <div className="discovery-region-label">
-          <motion.span
-            className="discovery-region-name"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          >
-            {REGIONS.find(r => r.id === activeDiscovery.region)?.label || activeDiscovery.region}
-          </motion.span>
-          <motion.span
-            className="discovery-region-hint"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
-          >
-            Visit {activeDiscovery.visitNumber}
-          </motion.span>
-        </div>
-      )}
-
-      {/* LAYER 8 — Discovery continue button (appears at revealed phase) */}
-      {discoveryPhase === 'revealed' && activeDiscovery && (
-        <motion.button
-          className="discovery-continue-btn"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          onClick={handleContinue}
-        >
-          {activeDiscovery.visitNumber >= 100 ? 'Another discovery awaits' : 'Continue'}
-        </motion.button>
-      )}
-
-      {/* LAYER 8 — Progress overlay */}
-      {view === 'progress' && member && !inDiscovery && (
+      {/* LAYER 6 — Progress overlay */}
+      {view === 'progress' && member && (
         <motion.div
           className="overlay progress-overlay"
           initial={{ opacity: 0 }}
@@ -411,24 +267,6 @@ export default function StagePassFlow() {
           </motion.button>
         </motion.div>
       )}
-
-      {/* LAYER 9 — Zoom reveal */}
-      <div className="zoom-reveal-wrap">
-        <motion.div
-          className="zoom-reveal"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: fingerZoomed ? 1 : 0 }}
-          transition={{ duration: 0.8, delay: fingerZoomed ? 0.4 : 0 }}
-        >
-          <div className="zoom-reveal-content">
-            <p className="zoom-reveal-label">Backup Pass</p>
-            <p className="zoom-reveal-code">STAGE-PASS-4LIVE</p>
-            <div className="zoom-reveal-divider" />
-            <p className="zoom-reveal-label">Recovery Key</p>
-            <p className="zoom-reveal-code">X8K2-M9P4-Q7R1-V3N6</p>
-          </div>
-        </motion.div>
-      </div>
     </div>
   )
 }

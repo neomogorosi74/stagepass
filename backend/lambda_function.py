@@ -66,6 +66,7 @@ def handle_checkin(event):
 
     phone_number = (payload.get("phoneNumber") or "").strip()
     first_name = (payload.get("firstName") or "").strip()
+    last_name = (payload.get("lastName") or "").strip()
 
     if not phone_number:
         return respond(400, {"error": "phoneNumber is required"})
@@ -86,15 +87,18 @@ def handle_checkin(event):
             })
         total_visits = int(existing["totalVisits"]) + 1
         resolved_first_name = existing["firstName"]
+        resolved_last_name = existing.get("lastName", last_name or "")
         created_at = existing["createdAt"]
     else:
         total_visits = 1
         resolved_first_name = first_name or "Friend"
+        resolved_last_name = last_name or ""
         created_at = now.isoformat()
 
     members_table.put_item(Item={
         "phoneNumber": phone_number,
         "firstName": resolved_first_name,
+        "lastName": resolved_last_name,
         "totalVisits": total_visits,
         "createdAt": created_at,
         "lastVisitAt": now.isoformat(),

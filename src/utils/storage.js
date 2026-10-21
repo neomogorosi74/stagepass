@@ -1,8 +1,15 @@
-import { getDiscoveryForVisit } from './discoveries.js'
-
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY || '';
 
 const CACHE_KEY = 'stagepass.lastPhoneNumber';
+
+function uuid() {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return 'xxxx-xxxx-xxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16))
+  }
+}
 const MEMBERS_KEY = 'stagepass.members';
 const VISITS_KEY = 'stagepass.visits';
 
@@ -64,11 +71,10 @@ function localLookupMember(phoneNumber) {
     exists: true,
     firstName: member.firstName,
     totalVisits: member.totalVisits,
-    discoveries: member.discoveries || [],
   };
 }
 
-function localRecordVisit({ firstName, phoneNumber }) {
+function localRecordVisit({ firstName, lastName, phoneNumber }) {
   if (!phoneNumber) throw new Error('phoneNumber is required');
 
   const members = getLocalMembers();
@@ -82,11 +88,11 @@ function localRecordVisit({ firstName, phoneNumber }) {
       const milestone = nextMilestone(existing.totalVisits);
       return {
         firstName: existing.firstName,
+        lastName: existing.lastName || '',
         totalVisits: existing.totalVisits,
         isReturning: true,
         alreadyCheckedInToday: true,
         milestone,
-        newDiscovery: null,
       };
     }
     const totalVisits = existing.totalVisits + 1;
@@ -94,16 +100,10 @@ function localRecordVisit({ firstName, phoneNumber }) {
     existing.lastVisitAt = now;
     existing.lastVisitDate = today;
 
-    if (!existing.discoveries) existing.discoveries = [];
-    const discovery = getDiscoveryForVisit(totalVisits);
-    if (discovery && !existing.discoveries.includes(discovery.id)) {
-      existing.discoveries.push(discovery.id);
-    }
-
     saveLocalMembers(members);
 
     visits.push({
-      visitId: crypto.randomUUID(),
+      visitId: uuid(),
       memberId: phoneNumber,
       timestamp: now,
     });
@@ -112,11 +112,11 @@ function localRecordVisit({ firstName, phoneNumber }) {
     const milestone = nextMilestone(totalVisits);
     return {
       firstName: existing.firstName,
+      lastName: existing.lastName || '',
       totalVisits,
       isReturning: true,
       alreadyCheckedInToday: false,
       milestone,
-      newDiscovery: discovery,
     };
   }
 
@@ -124,21 +124,18 @@ function localRecordVisit({ firstName, phoneNumber }) {
   const newMember = {
     phoneNumber,
     firstName: resolvedFirstName,
+    lastName: lastName || '',
     totalVisits: 1,
     createdAt: now,
     lastVisitAt: now,
     lastVisitDate: today,
-    discoveries: [],
   };
-
-  const discovery = getDiscoveryForVisit(1);
-  if (discovery) newMember.discoveries.push(discovery.id);
 
   members.push(newMember);
   saveLocalMembers(members);
 
   visits.push({
-    visitId: crypto.randomUUID(),
+    visitId: uuid(),
     memberId: phoneNumber,
     timestamp: now,
   });
@@ -147,11 +144,11 @@ function localRecordVisit({ firstName, phoneNumber }) {
   const milestone = nextMilestone(1);
   return {
     firstName: resolvedFirstName,
+    lastName: lastName || '',
     totalVisits: 1,
     isReturning: false,
     alreadyCheckedInToday: false,
     milestone,
-    newDiscovery: discovery,
   };
 }
 
@@ -187,19 +184,19 @@ export async function lookupMember(phoneNumber) {
   return localLookupMember(phoneNumber);
 }
 
-export async function recordVisit({ firstName, phoneNumber }) {
+export async function recordVisit({ firstName, lastName, phoneNumber }) {
   if (API_BASE) {
     try {
       const res = await fetch(`${API_BASE}/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, phoneNumber }),
+        body: JSON.stringify({ firstName, lastName, phoneNumber }),
       });
       if (res.ok) return res.json();
     } catch {}
   }
 
-  return localRecordVisit({ firstName, phoneNumber });
+  return localRecordVisit({ firstName, lastName, phoneNumber });
 }
 
 export function getMembers() {
@@ -208,6 +205,61 @@ export function getMembers() {
 
 export function getVisits() {
   return getLocalVisits();
+}
+
+export async function fetchAdminData() {
+  if (API_BASE && ADMIN_KEY) {
+    try {
+      const headers = { 'x-api-key': ADMIN_KEY };
+      const [membersRes, visitsRes] = await Promise.all([
+        fetch(`${API_BASE}/admin/members`, { headers }),
+        fetch(`${API_BASE}/admin/visits`, { headers }),
+      ]);
+      if (membersRes.ok && visitsRes.ok) {
+        const membersData = await membersRes.json();
+        const visitsData = await visitsRes.json();
+        return {
+          members: membersData.members || [],
+          visits: visitsData.visits || [],
+          source: 'cloud',
+        };
+      }
+    } catch {}
+  }
+
+  return {
+    members: getLocalMembers(),
+    visits: getLocalVisits(),
+    source: 'local',
+  };
+}
+
+const CONNECTION_WEEK_KEY = 'stagepass.connectionWeek';
+const CONNECTION_WEEK_COUNT_KEY = 'stagepass.connectionWeekCount';
+const CONNECTION_WEEK_DATE_KEY = 'stagepass.connectionWeekDate';
+
+export function getNextConnectionSlot() {
+  const today = getTodaySAST();
+  let week = 0;
+  let weekCount = 0;
+  let lastDate = '';
+  try {
+    week = parseInt(localStorage.getItem(CONNECTION_WEEK_KEY) || '0', 10);
+    weekCount = parseInt(localStorage.getItem(CONNECTION_WEEK_COUNT_KEY) || '0', 10);
+    lastDate = localStorage.getItem(CONNECTION_WEEK_DATE_KEY) || '';
+  } catch {}
+
+  if (lastDate !== today) {
+    week++;
+    weekCount = 0;
+    localStorage.setItem(CONNECTION_WEEK_KEY, String(week));
+    localStorage.setItem(CONNECTION_WEEK_DATE_KEY, today);
+  }
+
+  const itemIndex = weekCount % 4;
+  localStorage.setItem(CONNECTION_WEEK_COUNT_KEY, String(weekCount + 1));
+
+  return { weekIndex: week - 1, itemIndex };
 }
 
 export function getMemberByPhone(phoneNumber) {
