@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import WarpedGridBackground from '../components/WarpedGridBackground'
-import { recordVisit, setCachedPhoneNumber, getNextConnectionSlot } from '../utils/storage'
+import { recordVisit, setCachedPhoneNumber, clearCachedPhoneNumber, getNextConnectionSlot } from '../utils/storage'
 import { getWeekItems } from '../utils/connections'
 import logo from '../assets/logo.png'
 import blLogo from '../assets/bl-logo.png'
@@ -30,6 +30,7 @@ export default function Home() {
   const [lastName, setLastName] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [visitCount, setVisitCount] = useState(null)
+  const [alreadyToday, setAlreadyToday] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [welcomeMessage, setWelcomeMessage] = useState('')
@@ -59,15 +60,22 @@ export default function Home() {
       const result = await recordVisit({ firstName: firstName || 'Friend', lastName, phoneNumber })
       setCachedPhoneNumber(phoneNumber)
       setVisitCount(result.totalVisits)
+      const duplicate = Boolean(result.alreadyCheckedInToday)
+      setAlreadyToday(duplicate)
       const slot = getNextConnectionSlot()
       const weekItems = getWeekItems(slot.weekIndex)
       setConnectionItem(weekItems[slot.itemIndex])
-      if (result.totalVisits > 1 && Math.random() < 0.2) {
-        setWelcomeMessage(RARE_WELCOMES[Math.floor(Math.random() * RARE_WELCOMES.length)])
-      } else {
+      if (duplicate) {
         setWelcomeMessage('')
+        setFlowState('already')
+      } else {
+        if (result.totalVisits > 1 && Math.random() < 0.2) {
+          setWelcomeMessage(RARE_WELCOMES[Math.floor(Math.random() * RARE_WELCOMES.length)])
+        } else {
+          setWelcomeMessage('')
+        }
+        setFlowState('welcome')
       }
-      setFlowState('welcome')
     } catch {
       setError('Could not check in. Try again.')
     } finally {
@@ -77,6 +85,20 @@ export default function Home() {
 
   const handleConnectionDone = () => {
     setFlowState('visitCount')
+  }
+
+  const handleDone = () => {
+    clearCachedPhoneNumber()
+    setFirstName('')
+    setLastName('')
+    setPhoneNumber('')
+    setVisitCount(null)
+    setAlreadyToday(false)
+    setWelcomeMessage('')
+    setConnectionItem(null)
+    setError('')
+    setSubmitting(false)
+    setFlowState('splash-bl')
   }
 
   return (
@@ -176,9 +198,32 @@ export default function Home() {
         </div>
       )}
 
+      {flowState === 'already' && (
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', animation: 'fadeUp 0.5s ease-out' }}>
+          <p style={{ fontSize: '28px', fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>You're already signed in for today.</p>
+          <p style={{ fontSize: '15px', color: 'rgba(10,10,10,0.4)', margin: 0, fontWeight: 400 }}>
+            Visit {ordinal(visitCount)} Thursday is on the board.
+          </p>
+          <button onClick={handleDone} style={{
+            marginTop: '20px', padding: '14px 32px', borderRadius: '12px', border: 'none',
+            background: '#0A0A0A', color: '#FFFFFF', fontSize: '17px',
+            fontWeight: 600, cursor: 'pointer', letterSpacing: '-0.01em',
+          }}>
+            Done
+          </button>
+        </div>
+      )}
+
       {flowState === 'visitCount' && (
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', animation: 'fadeUp 0.5s ease-out' }}>
           <p style={{ fontSize: '32px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{ordinal(visitCount)} Thursday. You are most welcome.</p>
+          <button onClick={handleDone} style={{
+            marginTop: '20px', padding: '14px 32px', borderRadius: '12px', border: 'none',
+            background: '#0A0A0A', color: '#FFFFFF', fontSize: '17px',
+            fontWeight: 600, cursor: 'pointer', letterSpacing: '-0.01em',
+          }}>
+            Done
+          </button>
         </div>
       )}
 

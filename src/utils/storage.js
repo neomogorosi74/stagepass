@@ -166,13 +166,25 @@ export function setCachedPhoneNumber(phoneNumber) {
   } catch {}
 }
 
+export function clearCachedPhoneNumber() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch {}
+}
+
+export function normalizePhone(phoneNumber) {
+  if (!phoneNumber) return '';
+  return String(phoneNumber).replace(/[\s\-().]/g, '');
+}
+
 export async function lookupMember(phoneNumber) {
   if (!phoneNumber) return null;
+  const phone = normalizePhone(phoneNumber);
 
   if (API_BASE) {
     try {
       const res = await fetch(
-        `${API_BASE}/members?phoneNumber=${encodeURIComponent(phoneNumber)}`
+        `${API_BASE}/members?phoneNumber=${encodeURIComponent(phone)}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -181,22 +193,24 @@ export async function lookupMember(phoneNumber) {
     } catch {}
   }
 
-  return localLookupMember(phoneNumber);
+  return localLookupMember(phone);
 }
 
 export async function recordVisit({ firstName, lastName, phoneNumber }) {
+  const phone = normalizePhone(phoneNumber);
+
   if (API_BASE) {
     try {
       const res = await fetch(`${API_BASE}/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, phoneNumber }),
+        body: JSON.stringify({ firstName, lastName, phoneNumber: phone }),
       });
       if (res.ok) return res.json();
     } catch {}
   }
 
-  return localRecordVisit({ firstName, lastName, phoneNumber });
+  return localRecordVisit({ firstName, lastName, phoneNumber: phone });
 }
 
 export function getMembers() {
