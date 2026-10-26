@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts'
 import { jsPDF } from 'jspdf'
-import { getVisits, getMembers, fetchAdminData } from '../utils/storage.js'
+import { getVisits, getMembers, fetchAdminData, clearAdminSession } from '../utils/storage.js'
+import EventManager from '../components/EventManager.jsx'
 import './StagePassAdmin.css'
 
 const PIE_COLORS = ['#87ceeb', '#00b894', '#ffd700']
@@ -191,6 +193,7 @@ function calcStreaks(members) {
 }
 
 export default function StagePassAdmin() {
+  const navigate = useNavigate()
   const [trafficData, setTrafficData] = useState([])
   const [liveCheckins, setLiveCheckins] = useState([])
   const [activeCount, setActiveCount] = useState(0)
@@ -212,7 +215,12 @@ export default function StagePassAdmin() {
   })
 
   const refreshData = useCallback(async () => {
-    const { members, visits, source } = await fetchAdminData()
+    const { members, visits, source, authExpired } = await fetchAdminData()
+    if (authExpired) {
+      clearAdminSession()
+      navigate('/login', { replace: true })
+      return
+    }
     setCloudMembers(members)
     setCloudVisits(visits)
     setDataSource(source)
@@ -223,13 +231,18 @@ export default function StagePassAdmin() {
     setLoyalVisitors(buildLoyalVisitors(members))
     setVisitorPie(buildVisitorPie(members))
     setVisitorTrend(buildVisitorTrend(visits, members))
-  }, [])
+  }, [navigate])
 
   useEffect(() => {
     refreshData()
     const iv = setInterval(refreshData, 5000)
     return () => clearInterval(iv)
   }, [refreshData])
+
+  const handleLogout = () => {
+    clearAdminSession()
+    navigate('/login', { replace: true })
+  }
 
   const filteredMembers = cloudMembers
     .filter(m => {
@@ -342,6 +355,9 @@ export default function StagePassAdmin() {
           <span className="admin-divider-rule" />
           <span className="admin-indicator" />
           <span className="admin-indicator-label">{dataSource === 'cloud' ? 'Live • Cloud' : 'Live • Local'}</span>
+          <button type="button" className="admin-download-btn" onClick={handleLogout} style={{ padding: '3px 8px', fontSize: '8px' }}>
+            Log out
+          </button>
         </div>
       </header>
 
@@ -572,6 +588,10 @@ export default function StagePassAdmin() {
             </div>
           </section>
         </div>
+      </div>
+
+      <div style={{ padding: '0 16px' }}>
+        <EventManager />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', padding: '12px 0' }}>

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import WarpedGridBackground from '../components/WarpedGridBackground'
 import { recordVisit, setCachedPhoneNumber, clearCachedPhoneNumber, getNextConnectionSlot } from '../utils/storage'
 import { getWeekItems } from '../utils/connections'
+import { fetchEventPublic } from '../utils/events'
 import logo from '../assets/logo.png'
 import blLogo from '../assets/bl-logo.png'
 
@@ -25,16 +27,41 @@ const RARE_WELCOMES = [
 ]
 
 export default function Home() {
+  const [searchParams] = useSearchParams()
+  const eventId = searchParams.get('eventId') || ''
+  const eventToken = searchParams.get('t') || searchParams.get('token') || ''
   const [flowState, setFlowState] = useState('splash-bl')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [visitCount, setVisitCount] = useState(null)
   const [alreadyToday, setAlreadyToday] = useState(false)
+  const [alreadyEvent, setAlreadyEvent] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const [connectionItem, setConnectionItem] = useState(null)
+  const [eventInfo, setEventInfo] = useState(null)
+  const [eventLinkError, setEventLinkError] = useState('')
+
+  useEffect(() => {
+    if (!eventId) return
+    let active = true
+    fetchEventPublic(eventId)
+      .then(data => {
+        if (!active) return
+        setEventInfo(data)
+        setEventLinkError('')
+      })
+      .catch(() => {
+        if (!active) return
+        setEventInfo(null)
+        setEventLinkError('This event link is invalid or no longer available.')
+      })
+    return () => {
+      active = false
+    }
+  }, [eventId])
 
   useEffect(() => {
     if (flowState === 'splash-bl') {
@@ -57,11 +84,12 @@ export default function Home() {
     setSubmitting(true)
     setError('')
     try {
-      const result = await recordVisit({ firstName: firstName || 'Friend', lastName, phoneNumber })
+      const result = await recordVisit({ firstName: firstName || 'Friend', lastName, phoneNumber, eventId, token: eventToken })
       setCachedPhoneNumber(phoneNumber)
       setVisitCount(result.totalVisits)
       const duplicate = Boolean(result.alreadyCheckedInToday)
       setAlreadyToday(duplicate)
+      setAlreadyEvent(Boolean(result.alreadyCheckedInToEvent))
       const slot = getNextConnectionSlot()
       const weekItems = getWeekItems(slot.weekIndex)
       setConnectionItem(weekItems[slot.itemIndex])
@@ -76,8 +104,8 @@ export default function Home() {
         }
         setFlowState('welcome')
       }
-    } catch {
-      setError('Could not check in. Try again.')
+    } catch (e) {
+      setError(e.message || 'Could not check in. Try again.')
     } finally {
       setSubmitting(false)
     }
@@ -94,6 +122,7 @@ export default function Home() {
     setPhoneNumber('')
     setVisitCount(null)
     setAlreadyToday(false)
+    setAlreadyEvent(false)
     setWelcomeMessage('')
     setConnectionItem(null)
     setError('')
@@ -127,6 +156,14 @@ export default function Home() {
       {flowState === 'checkin' && (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '320px', width: '100%' }}>
           <h1 style={{ fontSize: '28px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>Check In</h1>
+          {eventInfo && (
+            <p style={{ margin: 0, color: 'rgba(10,10,10,0.55)', fontSize: '13px', fontWeight: 600, letterSpacing: '0.01em' }}>
+              {eventInfo.eventName}
+              {eventInfo.venue ? ` · ${eventInfo.venue}` : ''}
+              {eventInfo.eventDate ? ` · ${eventInfo.eventDate}` : ''}
+            </p>
+          )}
+          {eventLinkError && <p style={{ margin: 0, color: '#EC1E68', fontSize: '13px' }}>{eventLinkError}</p>}
           <p style={{ margin: '0 0 4px', color: 'rgba(10,10,10,0.4)', fontSize: '15px', fontWeight: 400 }}>Enter your details to mark your visit.</p>
           <input
             placeholder="First name"
@@ -200,9 +237,11 @@ export default function Home() {
 
       {flowState === 'already' && (
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', animation: 'fadeUp 0.5s ease-out' }}>
-          <p style={{ fontSize: '28px', fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>You're already signed in for today.</p>
+          <p style={{ fontSize: '28px', fontWeight: 600, margin: 0, letterSpacing: '-0.01em' }}>
+            {alreadyEvent ? "You're already checked in to this event." : "You're already signed in for today."}
+          </p>
           <p style={{ fontSize: '15px', color: 'rgba(10,10,10,0.4)', margin: 0, fontWeight: 400 }}>
-            Visit {ordinal(visitCount)} Thursday is on the board.
+            {alreadyEvent ? 'Your spot is on the board.' : `Visit ${ordinal(visitCount)} Thursday is on the board.`}
           </p>
           <button onClick={handleDone} style={{
             marginTop: '20px', padding: '14px 32px', borderRadius: '12px', border: 'none',

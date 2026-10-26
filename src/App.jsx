@@ -4,7 +4,7 @@ import Login from './pages/Login'
 import StagePassAdmin from './pages/StagePassAdmin'
 
 function ProtectedRoute({ children }) {
-  const authed = sessionStorage.getItem('stagepass.admin') === 'granted'
+  const authed = sessionStorage.getItem('stagepass.admin') === 'granted' && sessionStorage.getItem('stagepass.admin.token')
   if (!authed) return <Navigate to="/login" replace />
   return children
 }

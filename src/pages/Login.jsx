@@ -4,12 +4,13 @@ import logo from '../assets/logo.png'
 import blLogo from '../assets/bl-logo.png'
 
 const SPLASH_DURATION = 4000
-const AUTH_PASSWORD = 'blacklabone2024'
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 export default function Login() {
   const [flowState, setFlowState] = useState('splash-bl')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -23,14 +24,42 @@ export default function Login() {
     }
   }, [flowState])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (password === AUTH_PASSWORD) {
-      sessionStorage.setItem('stagepass.admin', 'granted')
-      navigate('/admin', { replace: true })
-    } else {
-      setError('Incorrect password')
+    if (!password) {
+      setError('Enter password')
+      return
+    }
+    setSubmitting(true)
+    setError('')
+    try {
+      if (API_BASE) {
+        const res = await fetch(`${API_BASE}/admin/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.token) {
+            sessionStorage.setItem('stagepass.admin.token', data.token)
+            sessionStorage.setItem('stagepass.admin', 'granted')
+            navigate('/admin', { replace: true })
+            return
+          }
+        }
+        setError('Incorrect password')
+        setPassword('')
+        return
+      }
+      // Fallback: no API configured - deny access (no hardcoded password)
+      setError('Authentication unavailable')
       setPassword('')
+    } catch {
+      setError('Authentication failed')
+      setPassword('')
+    } finally {
+      setSubmitting(false)
     }
   }
 

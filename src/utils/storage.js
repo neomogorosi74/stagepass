@@ -1,5 +1,12 @@
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY || '';
+
+function getAdminToken() {
+  try {
+    return sessionStorage.getItem('stagepass.admin.token') || ''
+  } catch {
+    return ''
+  }
+}
 
 const CACHE_KEY = 'stagepass.lastPhoneNumber';
 
@@ -196,7 +203,7 @@ export async function lookupMember(phoneNumber) {
   return localLookupMember(phone);
 }
 
-export async function recordVisit({ firstName, lastName, phoneNumber }) {
+export async function recordVisit({ firstName, lastName, phoneNumber, eventId, token }) {
   const phone = normalizePhone(phoneNumber);
 
   if (API_BASE) {
@@ -204,13 +211,37 @@ export async function recordVisit({ firstName, lastName, phoneNumber }) {
       const res = await fetch(`${API_BASE}/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, phoneNumber: phone }),
+        body: JSON.stringify({ firstName, lastName, phoneNumber: phone, eventId, token }),
       });
       if (res.ok) return res.json();
-    } catch {}
+      // Try to parse error
+      try {
+        const err = await res.json()
+        const msg = err.error || err.message || 'Check-in failed'
+        throw new Error(msg)
+      } catch (e) {
+        if (e.message && e.message !== 'Check-in failed') throw e
+        throw new Error('Check-in failed')
+      }
+    } catch (e) {
+      if (e.message && e.message !== 'Failed to fetch') throw e
+      // fall through to local only if no event params
+      if (eventId || token) throw e
+    }
+  }
+
+  if (eventId || token) {
+    throw new Error('Event check-in unavailable')
   }
 
   return localRecordVisit({ firstName, lastName, phoneNumber: phone });
+}
+
+export function clearAdminSession() {
+  try {
+    sessionStorage.removeItem('stagepass.admin.token')
+    sessionStorage.removeItem('stagepass.admin')
+  } catch {}
 }
 
 export function getMembers() {
@@ -222,13 +253,31 @@ export function getVisits() {
 }
 
 export async function fetchAdminData() {
-  if (API_BASE && ADMIN_KEY) {
+  if (API_BASE) {
+    const token = getAdminToken()
+    if (!token) {
+      return {
+        members: getLocalMembers(),
+        visits: getLocalVisits(),
+        source: 'local',
+        authExpired: true,
+      }
+    }
     try {
-      const headers = { 'x-api-key': ADMIN_KEY };
+      const headers = { 'Authorization': `Bearer ${token}` }
       const [membersRes, visitsRes] = await Promise.all([
         fetch(`${API_BASE}/admin/members`, { headers }),
         fetch(`${API_BASE}/admin/visits`, { headers }),
       ]);
+      if (membersRes.status === 401 || membersRes.status === 403 ||
+          visitsRes.status === 401 || visitsRes.status === 403) {
+        return {
+          members: getLocalMembers(),
+          visits: getLocalVisits(),
+          source: 'local',
+          authExpired: true,
+        }
+      }
       if (membersRes.ok && visitsRes.ok) {
         const membersData = await membersRes.json();
         const visitsData = await visitsRes.json();
@@ -236,6 +285,7 @@ export async function fetchAdminData() {
           members: membersData.members || [],
           visits: visitsData.visits || [],
           source: 'cloud',
+          authExpired: false,
         };
       }
     } catch {}
@@ -245,6 +295,7 @@ export async function fetchAdminData() {
     members: getLocalMembers(),
     visits: getLocalVisits(),
     source: 'local',
+    authExpired: false,
   };
 }
 
